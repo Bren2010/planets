@@ -1,0 +1,208 @@
+<html>
+    <head>
+        <title>Planets</title>
+        
+        <script type="text/javascript" src="./jquery-1.10.2.min.js"></script>
+        <script type="text/javascript" src="./coffee-script.js"></script>
+        <script type="text/coffeescript">
+            window.defaultPlanet =
+                pos: [250, 250]
+                vel: [0, 0]
+                mass: 50
+                moves: true
+                color: '#0000ff'
+            
+            window.deleteRow = (id) -> $('#planet-' + id).remove()
+            window.addRow = (data) ->
+                table = $('#planets')
+                newRow = $('<tr id="planet-' + next + '">')
+                cols =''
+                
+                cols += '<td>' + next + '</td>'
+                cols += '<td><input type="text" size="5" class="xpos" value="' + data.pos[0] + '" /></td>'
+                cols += '<td><input type="text" size="5" class="ypos" value="' + data.pos[1] + '" /></td>'
+                cols += '<td><input type="text" size="5" class="xvel" value="' + data.vel[0] + '" /></td>'
+                cols += '<td><input type="text" size="5" class="yvel" value="' + data.vel[1] + '" /></td>'
+                cols += '<td><input type="text" size="5" class="mass" value="' + data.mass + '" /></td>'
+                cols += '<td><input type="text" size="8" class="color" value="' + data.color + '" /></td>'
+                cols += '<td><input type="checkbox" class="moves"'
+                if data.moves then cols += ' checked="checked"'
+                cols += ' /></td>'
+                cols += '<td><button onclick="window.deleteRow(\'' + next + '\')">X</button></td>'
+                
+                newRow.append cols
+                table.append newRow
+                next++
+            
+            window.restart = =>
+                clearInterval window.tickInterval
+                
+                canvas = document.getElementById 'canvas'
+                context = canvas.getContext '2d'
+                context.clearRect 0, 0, canvas.width, canvas.height
+                
+                window.planets = {}
+                $('#planets > tbody > tr').each ->
+                    td = $(this).find('td')
+                    id = $(this).find('td').eq(0).text()
+                    
+                    pos = []
+                    pos[0] = parseFloat td.eq(1).find('input:first').val()
+                    pos[1] = parseFloat td.eq(2).find('input:first').val()
+                    
+                    vel = []
+                    vel[0] = parseFloat td.eq(3).find('input:first').val()
+                    vel[1] = -1 * parseFloat td.eq(4).find('input:first').val()
+                    
+                    mass = parseFloat td.eq(5).find('input:first').val()
+                    color = td.eq(6).find('input:first').val()
+                    moves = td.eq(7).find('input:first').is(':checked')
+                    
+                    window.planets[id] =
+                        pos: pos
+                        vel: vel
+                        mass: mass
+                        color: color
+                        moves: moves
+                
+                alert JSON.stringify window.planets
+                window.tickInterval = setInterval window.tick, 50
+            
+            # Config
+            window.planets = {}
+            
+            window.planets[1] =
+                pos: [250, 250]
+                vel: [0, 0.4]
+                mass: 500
+                moves: true
+                color: '#00ff00'
+            
+            window.planets[2] =
+                pos: [300, 250]
+                vel: [0, -4]
+                mass: 50
+                moves: true
+                color: '#ff0000'
+            
+            G = 1
+            t = 0.5
+            next = 1
+            
+            # Load table
+            table = $('#planets')
+            for id, data of window.planets
+                dataC = $.extend true, {}, data
+                dataC.vel[1] = dataC.vel[1] * -1
+                addRow dataC
+            
+            # Animation
+            window.tick = ->
+                temp = {}
+                for name, attr of window.planets
+                    temp[name] = [attr.vel[0], attr.vel[1]]
+                
+                for plName, p of window.planets
+                    for satName, s of window.planets when plName isnt satName
+                        # Calculate radius from other body.
+                        r = Math.pow(p.pos[0] - s.pos[0], 2)
+                        r = r + Math.pow(p.pos[1] - s.pos[1], 2)
+                        r = Math.sqrt r
+                        
+                        if r <= 3
+                            if s.mass > p.mass then p.color = s.color
+                            
+                            vx = (p.mass * p.vel[0]) + (s.mass * s.vel[0])
+                            vy = (p.mass * p.vel[1]) + (s.mass * s.vel[1])
+                            vx = vx / (p.mass + s.mass)
+                            vy = vy / (p.mass + s.mass)
+                            
+                            p.vel = [vx, vy]
+                            p.mass = s.mass + p.mass
+                            
+                            delete window.planets[satName]
+                            delete temp[satName]
+                            
+                            return window.tick()
+                        
+                        # Calculate degree from planet.
+                        d = 0
+                        
+                        if p.pos[0] is s.pos[0] and p.pos[1] > s.pos[1]
+                            d = -0.5 * Math.PI
+                        
+                        if p.pos[0] is s.pos[0] and p.pos[1] < s.pos[1]
+                            d = 0.5 * Math.PI
+                        
+                        if p.pos[0] isnt s.pos[0]
+                            d = (p.pos[1] - s.pos[1]) / (p.pos[0] - s.pos[0])
+                            d = Math.atan d
+                        
+                        if p.pos[0] > s.pos[0] then d = d + Math.PI
+                        
+                        # Calculate change in velocity
+                        v = (G * s.mass * t) / Math.pow(r, 2)
+                        vx = v * Math.cos d
+                        vy = v * Math.sin d
+                        
+                        temp[plName][0] += vx
+                        temp[plName][1] += vy
+                
+                window.planets[name].vel = [v[0], v[1]] for name, v of temp
+                
+                # Calculate new positions
+                for name, v of temp when window.planets[name].moves
+                    temp[name][0] = (t * v[0]) + window.planets[name].pos[0]
+                    temp[name][1] = (t * v[1]) + window.planets[name].pos[1]
+                
+                for name, pos of temp when window.planets[name].moves # Graph
+                    canvas = document.getElementById 'canvas'
+                    context = canvas.getContext '2d'
+                    context.beginPath()
+                    context.strokeStyle = window.planets[name].color
+                    context.moveTo window.planets[name].pos[0], window.planets[name].pos[1]
+                    context.lineTo pos[0], pos[1]
+                    context.stroke()
+                
+                for name, pos of temp when window.planets[name].moves
+                    window.planets[name].pos = [pos[0], pos[1]]
+                
+            
+            window.tickInterval = setInterval window.tick, 50
+        </script>
+    </head>
+    <body><center>
+        <canvas id="canvas" width="500" height="500" style="border: 1px dotted black;margin-top: 25px"></canvas>
+    <br /><br />
+    
+        <table id="planets" style="width: 50%">
+            <thead><tr>
+                <th style="width: 1%">#</th>
+                <th>x-pos (m)</th>
+                <th>y-pos (m)</th>
+                <th>v<sub>x</sub> (<span style="display:inline-block; vertical-align:-0.5em; font-size:85%; text-align:center;"><span style="display:block; line-height:1em; padding:0 0.1em;">m</span><span style="display:block; line-height:1em; padding:0 0.1em; border-top:1px solid;">s</span></span>)</th>
+                <th>v<sub>y</sub> (<span style="display:inline-block; vertical-align:-0.5em; font-size:85%; text-align:center;"><span style="display:block; line-height:1em; padding:0 0.1em;">m</span><span style="display:block; line-height:1em; padding:0 0.1em; border-top:1px solid;">s</span></span>)</th>
+                <th>Mass (Kg)</th>
+                <th>Color</th>
+                <th>Moves</th>
+                <th>Del</th>
+            </tr></thead>
+            <tbody></tbody>
+        </table>
+        <br />
+        <button onclick="window.addRow(window.defaultPlanet)">Add Planet</button>&nbsp;
+        <button onclick="window.restart()">Restart Simulation</button>
+    </center>
+    <br /><hr /><br />
+    
+    <strong>Notes:</strong>
+    
+    <ol>
+        <li>If the net momentum isn't 0, the system will drift off of the screen.  Notice in the first example, that the first particle has 10x more mass than the second planet, so it has a 10x slower velocity in the opposite direction.</li>
+        <li>Disregarding a few exceptions, two-body systems are always stable.</li>
+        <li>Disregarding a few exceptions, n-body systems (n > 2) are always unstable and will degrade into a two-body system.</li>
+        <li>How to create a <a href="http://en.wikipedia.org/wiki/Circular_orbit">circular orbit</a>:<br /><img src="http://upload.wikimedia.org/math/0/3/e/03eb3f7d7ad1cf30ad522c9628980abb.png" /></li>
+        <li>How to calculate <a href="http://en.wikipedia.org/wiki/Escape_velocity">escape velocity</a>:<br /><img src="http://upload.wikimedia.org/math/9/b/3/9b3949afb561d79a2b12e24ff6b88f38.png" /></li>
+    </ol>
+    </body>
+</html>
